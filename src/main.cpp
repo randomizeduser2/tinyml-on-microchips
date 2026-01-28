@@ -34,8 +34,8 @@ void classify_frame(const cv::Mat& frame, ei_impulse_result_t& result) {
     std::vector<float> features(pixel_count); // Her piksel için yer tut.
     
     // Pikselleri paketlenmiş uint32 formatına dönüştür, RGB format şu şekilde paketlenir
-    size_t idx = 0;
-    for (int y = 0; y < rgb.rows; y++) {
+    size_t index = 0;
+    for (int y = 0; y < rgb.rows; y++) { 
         for (int x = 0; x < rgb.cols; x++) {
             cv::Vec3b pixel = rgb.at<cv::Vec3b>(y, x);
             // Pikseli paketle (R = 255, G = 128, B = 64  (3 ayrı değer))
@@ -43,7 +43,8 @@ void classify_frame(const cv::Mat& frame, ei_impulse_result_t& result) {
                                     (static_cast<uint32_t>(pixel[1]) << 8) |   // G
                                     (static_cast<uint32_t>(pixel[2]));         // B
             
-            features[idx++] = static_cast<float>(packed_pixel);
+            features[index] = static_cast<float>(packed_pixel);
+            index++;
         }
     }
     
@@ -51,7 +52,22 @@ void classify_frame(const cv::Mat& frame, ei_impulse_result_t& result) {
     ei::signal_t signal;
     signal.total_length = pixel_count;  // Toplam piksel sayısı
     
-    // get_data callback fonksiyonunu ayarla
+    /* 
+        @function get_data_fn
+        @description Bu lambda fonksiyonu, Edge Impulse SDK'nın sinyal yapısı için gerekli olan get_data callback fonksiyonudur.
+                     Belirtilen offset ve length parametrelerine göre özellik vektöründen verileri alır ve out_ptr işaretçisine kopyalar.
+        @param offset: Başlangıç ofseti
+        @param length: Kopyalanacak uzunluk
+        @param out_ptr: Verilerin kopyalanacağı çıkış işaretçisi
+        @return int: İşlemin başarılı olduğunu belirten bir tamsayı (0)
+
+        Akış şöyle gerçekleşir:
+           Features vektörünü offsetten başlayarak (offsete kadar olanları atlıyor) okumaya başlar ancak nereye kadar ?
+           Length parametresi kadar okur. Bu yüzden features[offset + i] ile okuma yapar.
+           Okuduğu verileri out_ptr işaretçisine yazar.
+           İşlem başarılı ise 0 döner.
+
+    */
     auto get_data_fn = [&features](size_t offset, size_t length, float *out_ptr) -> int {
         for (size_t i = 0; i < length; i++) {
             out_ptr[i] = features[offset + i];
@@ -133,6 +149,11 @@ int main(int argc, char** argv) {
         }
         
         // Ekrana çizimler yapılıyor buralar yapay zekaya ait.
+        // En temelde cv::Point ile kordinatları belirliyor daha sonrasında cv::rectangle ile dikdörtgen çiziyor
+        // cv::putText ile de metin çiziyor.
+        // Metin olarak etiket adı ve güven skoru gösteriliyor.
+        // cv::Scalar ile renk belirleniyor BGR formatında.
+        // Çokta bir numarası yok o yüzden yapay zekaya şutladım buraları :)
         std::string label = ei_classifier_inferencing_categories[max_idx];
         std::string confidence = std::to_string(int(max_score * 100)) + "%";
         std::string text = label + " (" + confidence + ")";
